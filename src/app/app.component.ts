@@ -10,7 +10,7 @@ import { BadgeModule } from 'primeng/badge'
 import { DialogModule } from 'primeng/dialog'
 import { TooltipModule } from 'primeng/tooltip'
 import { Subscription } from 'rxjs'
-import type { Annotation, Claim, Feature, Role, ValidationIssue, WorkbenchState } from './models'
+import type { Annotation, Claim, Feature, Role, ValidationIssue, VersionDiff, WorkbenchState } from './models'
 import { WorkbenchService } from './workbench.service'
 
 @Component({
@@ -26,6 +26,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   history = { past: 0, future: 0 }
   compareA = ''
   compareB = ''
+  changedOnly = false
   annotationDraft = ''
   versionDialog = false
   versionName = ''
@@ -123,16 +124,21 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getVersion(id: string) { return this.state.versions.find(item => item.id === id) }
-  compareRows(): Array<{ label: string; before: string; after: string; changed: boolean }> {
+  compareRows(): VersionDiff[] {
     const a = this.getVersion(this.compareA)
     const b = this.getVersion(this.compareB)
     if (!a || !b) return []
-    const ids = Array.from(new Set([...a.claims.map(item => item.id), ...b.claims.map(item => item.id)]))
-    return ids.map(id => {
-      const before = a.claims.find(item => item.id === id)?.text || ''
-      const after = b.claims.find(item => item.id === id)?.text || ''
-      return { label: `权利要求 ${a.claims.find(item => item.id === id)?.number || b.claims.find(item => item.id === id)?.number || '?'}`, before, after, changed: before !== after }
-    })
+    return this.service.diffVersions(a, b)
+  }
+
+  visibleDiffRows(): VersionDiff[] {
+    const rows = this.compareRows()
+    return this.changedOnly ? rows.filter(row => row.changed) : rows
+  }
+
+  changedCount(): number { return this.compareRows().filter(row => row.changed).length }
+  scopeLabel(scope: VersionDiff['scope']): string {
+    return ({ claim: '权利要求', feature: '特征', paragraph: '段落', mapping: '映射' })[scope]
   }
 
   exportFile(type: 'json' | 'csv'): void {

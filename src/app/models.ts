@@ -47,6 +47,18 @@ export interface ClaimVersion {
   createdAt: string
   claims: Claim[]
   features: Feature[]
+  paragraphs?: Paragraph[]
+  annotations?: Annotation[]
+  orphanMappings?: OrphanMapping[]
+}
+
+export interface VersionDiff {
+  scope: 'claim' | 'feature' | 'paragraph' | 'mapping'
+  group: string
+  aspect: string
+  before: string
+  after: string
+  changed: boolean
 }
 
 export interface Position {

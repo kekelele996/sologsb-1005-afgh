@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy } from '@angular/core'
 import { BehaviorSubject, map, type Observable } from 'rxjs'
-import type { Annotation, Claim, ClaimVersion, Feature, Paragraph, Position, Role, ValidationIssue, WorkbenchState } from './models'
+import type { Annotation, Claim, ClaimVersion, Feature, OrphanMapping, Paragraph, Position, Role, ValidationIssue, VersionDiff, WorkbenchState } from './models'
 
 const STORAGE_KEY = 'patent-claim-mapping-workbench-v1'
 const POSITION_KEY = 'patent-claim-mapping-position-v1'
@@ -214,7 +214,9 @@ export class WorkbenchService implements OnDestroy {
     this.commit(state => {
       state.versions.unshift({
         id: `version-${Date.now()}`, name: name?.trim() || `快照 ${new Date().toLocaleString('zh-CN', { hour12: false })}`,
-        createdAt: new Date().toISOString(), claims: clone(state.claims), features: clone(state.features)
+        createdAt: new Date().toISOString(),
+        claims: clone(state.claims), features: clone(state.features), paragraphs: clone(state.paragraphs),
+        annotations: clone(state.annotations), orphanMappings: clone(state.orphanMappings)
       })
     })
   }
@@ -225,9 +227,76 @@ export class WorkbenchService implements OnDestroy {
       if (!version) return
       state.claims = clone(version.claims)
       state.features = clone(version.features)
+      if (version.paragraphs) state.paragraphs = clone(version.paragraphs)
+      if (version.annotations) state.annotations = clone(version.annotations)
+      if (version.orphanMappings) state.orphanMappings = clone(version.orphanMappings)
       if (!state.claims.some(claim => claim.id === state.selectedClaimId)) state.selectedClaimId = state.claims[0]?.id || ''
       state.selectedFeatureId = state.features.find(feature => feature.claimId === state.selectedClaimId)?.id || null
     })
+  }
+
+  diffVersions(a: ClaimVersion, b: ClaimVersion): VersionDiff[] {
+    const rows: VersionDiff[] = []
+    const paragraphsA = a.paragraphs ?? []
+    const paragraphsB = b.paragraphs ?? []
+    const annotationsA = a.annotations ?? []
+    const annotationsB = b.annotations ?? []
+    const orphansA = a.orphanMappings ?? []
+    const orphansB = b.orphanMappings ?? []
+    const push = (scope: VersionDiff['scope'], group: string, aspect: string, before: string, after: string): void => {
+      rows.push({ scope, group, aspect, before, after, changed: before !== after })
+    }
+    const featureBody = (feature?: Feature): string => feature ? `${feature.label}\n${feature.text}` : ''
+    const featureStructure = (feature: Feature | undefined, features: Feature[]): string => {
+      if (!feature) return ''
+      const parent = feature.parentId ? features.find(item => item.id === feature.parentId)?.label || feature.parentId : '顶层特征'
+      const references = feature.referenceIds.map(refId => features.find(item => item.id === refId)?.label || refId)
+      return `父级：${parent}\n引用：${references.length ? references.join('、') : '无'}`
+    }
+    const featureSupports = (feature: Feature | undefined, paragraphs: Paragraph[]): string => {
+      if (!feature) return ''
+      return feature.supportIds.length
+        ? feature.supportIds.map(id => paragraphs.find(item => item.id === id)?.section || id).join('\n')
+        : '（无依据段落）'
+    }
+    const featureAnnotations = (list: Annotation[], featureId: string): string =>
+      list.filter(item => item.featureId === featureId).map(item => `【${item.authorName}】${item.text}`).join('\n')
+    const paragraphBody = (paragraph?: Paragraph): string => paragraph ? `${paragraph.section}\n${paragraph.text}` : ''
+    const orphanBody = (list: OrphanMapping[], paragraphs: Paragraph[]): string =>
+      list.map(item => `${item.featureLabel} → ${paragraphs.find(paragraph => paragraph.id === item.paragraphId)?.section || item.paragraphId}`).join('\n')
+
+    const claimIds = Array.from(new Set([...a.claims.map(item => item.id), ...b.claims.map(item => item.id)]))
+    for (const id of claimIds) {
+      const before = a.claims.find(item => item.id === id)
+      const after = b.claims.find(item => item.id === id)
+      const group = `权利要求 ${before?.number ?? after?.number ?? '?'}`
+      const attributes = (claim?: Claim): string => claim ? `${claim.title}｜${claim.independent ? '独立权利要求' : '从属权利要求'}` : ''
+      push('claim', group, '正文', before?.text ?? '', after?.text ?? '')
+      push('claim', group, '属性', attributes(before), attributes(after))
+    }
+
+    const featureIds = Array.from(new Set([...a.features.map(item => item.id), ...b.features.map(item => item.id)]))
+    for (const id of featureIds) {
+      const before = a.features.find(item => item.id === id)
+      const after = b.features.find(item => item.id === id)
+      const anchor = before ?? after
+      const claimNumber = (before ? a.claims : b.claims).find(claim => claim.id === anchor?.claimId)?.number ?? '?'
+      const group = `权利要求 ${claimNumber} · ${anchor?.label || id}`
+      push('feature', group, '正文', featureBody(before), featureBody(after))
+      push('feature', group, '结构关系', featureStructure(before, a.features), featureStructure(after, b.features))
+      push('feature', group, '支持映射', featureSupports(before, paragraphsA), featureSupports(after, paragraphsB))
+      push('feature', group, '批注', featureAnnotations(annotationsA, id), featureAnnotations(annotationsB, id))
+    }
+
+    const paragraphIds = Array.from(new Set([...paragraphsA.map(item => item.id), ...paragraphsB.map(item => item.id)]))
+    for (const id of paragraphIds) {
+      const before = paragraphsA.find(item => item.id === id)
+      const after = paragraphsB.find(item => item.id === id)
+      push('paragraph', before?.section ?? after?.section ?? id, '依据文字', paragraphBody(before), paragraphBody(after))
+    }
+
+    push('mapping', '待清理映射', '支持映射', orphanBody(orphansA, paragraphsA), orphanBody(orphansB, paragraphsB))
+    return rows
   }
 
   undo(): void {

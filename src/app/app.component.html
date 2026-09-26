@@ -167,19 +167,27 @@
             <label>目标版本<p-select [options]="state.versions" optionLabel="name" optionValue="id" [(ngModel)]="compareB" /></label>
           </div>
           <ng-template #needVersions><div class="empty-state large">至少保存两个版本后即可比较。</div></ng-template>
+          <div *ngIf="state.versions.length >= 2" class="diff-toolbar">
+            <span class="diff-summary">{{ changedCount() }} 项差异 · 共 {{ compareRows().length }} 项核对内容</span>
+            <label class="check-row diff-filter"><input type="checkbox" [(ngModel)]="changedOnly">仅显示有差异</label>
+          </div>
           <div *ngIf="state.versions.length >= 2" class="diff-list">
-            <article *ngFor="let row of compareRows()" [class.changed]="row.changed">
-              <header><strong>{{ row.label }}</strong><span>{{ row.changed ? '有差异' : '未变化' }}</span></header>
+            <article *ngFor="let row of visibleDiffRows()" [class.changed]="row.changed">
+              <header>
+                <span class="diff-title"><span class="scope-chip" [attr.data-scope]="row.scope">{{ scopeLabel(row.scope) }}</span><strong>{{ row.group }}</strong><em>{{ row.aspect }}</em></span>
+                <span>{{ row.changed ? '有差异' : '未变化' }}</span>
+              </header>
               <div class="diff-cols">
                 <div><small>基准</small><p>{{ row.before || '（未包含）' }}</p></div>
                 <div><small>目标</small><p>{{ row.after || '（未包含）' }}</p></div>
               </div>
             </article>
+            <div *ngIf="!visibleDiffRows().length" class="empty-state">两版核对内容完全一致。</div>
           </div>
           <div class="version-history" *ngIf="state.versions.length">
             <h3>版本历史</h3>
             <div class="version-row" *ngFor="let version of state.versions">
-              <span><strong>{{ version.name }}</strong><small>{{ version.createdAt | date:'yyyy-MM-dd HH:mm' }} · {{ version.features.length }} 个特征</small></span>
+              <span><strong>{{ version.name }}</strong><small>{{ version.createdAt | date:'yyyy-MM-dd HH:mm' }} · {{ version.claims.length }} 项权利要求 · {{ version.features.length }} 个特征 · {{ version.paragraphs?.length ?? 0 }} 个段落 · {{ version.annotations?.length ?? 0 }} 条批注</small></span>
               <p-button label="恢复此版" icon="pi pi-history" [outlined]="true" size="small" (onClick)="restoreVersion(version.id)" />
             </div>
           </div>
@@ -238,7 +246,7 @@
 
 <p-dialog header="保存版本快照" [(visible)]="versionDialog" [modal]="true" [style]="{ width: '460px' }">
   <div class="dialog-body">
-    <p>保存当前全部权利要求和技术特征，用于后续比较或恢复。</p>
+    <p>保存当前全部权利要求、技术特征、说明书段落、支持映射与批注，用于后续比较或恢复。</p>
     <label>版本名称<input pInputText [(ngModel)]="versionName" placeholder="例如：答复审查意见前" (keyup.enter)="createVersion()"></label>
   </div>
   <ng-template pTemplate="footer">
