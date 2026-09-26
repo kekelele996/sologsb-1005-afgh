@@ -168,18 +168,53 @@
           </div>
           <ng-template #needVersions><div class="empty-state large">至少保存两个版本后即可比较。</div></ng-template>
           <div *ngIf="state.versions.length >= 2" class="diff-list">
-            <article *ngFor="let row of compareRows()" [class.changed]="row.changed">
-              <header><strong>{{ row.label }}</strong><span>{{ row.changed ? '有差异' : '未变化' }}</span></header>
-              <div class="diff-cols">
-                <div><small>基准</small><p>{{ row.before || '（未包含）' }}</p></div>
-                <div><small>目标</small><p>{{ row.after || '（未包含）' }}</p></div>
+            <ng-container *ngIf="compareEntries().length; else noDiff">
+              <div class="diff-summary">
+                <strong>共 {{ compareEntries().length }} 处变化</strong>
+                <span>权利要求 {{ compareGroup('claim').length }} 处</span>
+                <span>技术特征与批注 {{ compareGroup('feature').length }} 处</span>
+                <span>说明书段落 {{ compareGroup('paragraph').length }} 处</span>
               </div>
-            </article>
+              <section class="diff-group" *ngIf="compareGroup('claim').length">
+                <h3>权利要求</h3>
+                <article class="diff-entry" *ngFor="let entry of compareGroup('claim')">
+                  <header><strong>{{ entry.label }}</strong><span class="diff-chip" [attr.data-category]="entry.category">{{ categoryLabel(entry.category) }}</span></header>
+                  <p class="diff-detail">{{ entry.detail }}</p>
+                  <div class="diff-cols" *ngIf="entry.before || entry.after">
+                    <div><small>基准</small><p>{{ entry.before || '（无）' }}</p></div>
+                    <div><small>目标</small><p>{{ entry.after || '（无）' }}</p></div>
+                  </div>
+                </article>
+              </section>
+              <section class="diff-group" *ngIf="compareGroup('feature').length">
+                <h3>技术特征与批注</h3>
+                <article class="diff-entry" *ngFor="let entry of compareGroup('feature')">
+                  <header><strong>{{ entry.label }}</strong><span class="diff-chip" [attr.data-category]="entry.category">{{ categoryLabel(entry.category) }}</span></header>
+                  <p class="diff-detail">{{ entry.detail }}</p>
+                  <div class="diff-cols" *ngIf="entry.before || entry.after">
+                    <div><small>基准</small><p>{{ entry.before || '（无）' }}</p></div>
+                    <div><small>目标</small><p>{{ entry.after || '（无）' }}</p></div>
+                  </div>
+                </article>
+              </section>
+              <section class="diff-group" *ngIf="compareGroup('paragraph').length">
+                <h3>说明书段落</h3>
+                <article class="diff-entry" *ngFor="let entry of compareGroup('paragraph')">
+                  <header><strong>{{ entry.label }}</strong><span class="diff-chip" [attr.data-category]="entry.category">{{ categoryLabel(entry.category) }}</span></header>
+                  <p class="diff-detail">{{ entry.detail }}</p>
+                  <div class="diff-cols" *ngIf="entry.before || entry.after">
+                    <div><small>基准</small><p>{{ entry.before || '（无）' }}</p></div>
+                    <div><small>目标</small><p>{{ entry.after || '（无）' }}</p></div>
+                  </div>
+                </article>
+              </section>
+            </ng-container>
+            <ng-template #noDiff><div class="empty-success large"><i class="pi pi-check-circle"></i><strong>两版本的核对内容完全一致：正文、依据文字、结构关系与批注均无变化。</strong></div></ng-template>
           </div>
           <div class="version-history" *ngIf="state.versions.length">
             <h3>版本历史</h3>
             <div class="version-row" *ngFor="let version of state.versions">
-              <span><strong>{{ version.name }}</strong><small>{{ version.createdAt | date:'yyyy-MM-dd HH:mm' }} · {{ version.features.length }} 个特征</small></span>
+              <span><strong>{{ version.name }}</strong><small>{{ version.createdAt | date:'yyyy-MM-dd HH:mm' }} · {{ version.claims.length }} 项权利要求 · {{ version.features.length }} 个特征 · {{ version.paragraphs?.length || 0 }} 个段落 · {{ version.annotations?.length || 0 }} 条批注</small></span>
               <p-button label="恢复此版" icon="pi pi-history" [outlined]="true" size="small" (onClick)="restoreVersion(version.id)" />
             </div>
           </div>
@@ -238,7 +273,7 @@
 
 <p-dialog header="保存版本快照" [(visible)]="versionDialog" [modal]="true" [style]="{ width: '460px' }">
   <div class="dialog-body">
-    <p>保存当前全部权利要求和技术特征，用于后续比较或恢复。</p>
+    <p>保存当前权利要求、技术特征、说明书段落、支持映射与批注的完整核对内容，用于后续逐项比较或整体恢复。</p>
     <label>版本名称<input pInputText [(ngModel)]="versionName" placeholder="例如：答复审查意见前" (keyup.enter)="createVersion()"></label>
   </div>
   <ng-template pTemplate="footer">

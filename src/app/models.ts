@@ -47,6 +47,22 @@ export interface ClaimVersion {
   createdAt: string
   claims: Claim[]
   features: Feature[]
+  paragraphs?: Paragraph[]
+  annotations?: Annotation[]
+  orphanMappings?: OrphanMapping[]
+}
+
+export type DiffScope = 'claim' | 'feature' | 'paragraph'
+export type DiffCategory = 'added' | 'removed' | 'text' | 'basis' | 'structure' | 'annotation'
+
+export interface VersionDiffEntry {
+  id: string
+  scope: DiffScope
+  category: DiffCategory
+  label: string
+  detail: string
+  before: string
+  after: string
 }
 
 export interface Position {

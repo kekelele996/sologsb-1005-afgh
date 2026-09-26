@@ -10,7 +10,7 @@ import { BadgeModule } from 'primeng/badge'
 import { DialogModule } from 'primeng/dialog'
 import { TooltipModule } from 'primeng/tooltip'
 import { Subscription } from 'rxjs'
-import type { Annotation, Claim, Feature, Role, ValidationIssue, WorkbenchState } from './models'
+import type { Annotation, Claim, DiffCategory, DiffScope, Feature, Role, ValidationIssue, VersionDiffEntry, WorkbenchState } from './models'
 import { WorkbenchService } from './workbench.service'
 
 @Component({
@@ -123,16 +123,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getVersion(id: string) { return this.state.versions.find(item => item.id === id) }
-  compareRows(): Array<{ label: string; before: string; after: string; changed: boolean }> {
-    const a = this.getVersion(this.compareA)
-    const b = this.getVersion(this.compareB)
-    if (!a || !b) return []
-    const ids = Array.from(new Set([...a.claims.map(item => item.id), ...b.claims.map(item => item.id)]))
-    return ids.map(id => {
-      const before = a.claims.find(item => item.id === id)?.text || ''
-      const after = b.claims.find(item => item.id === id)?.text || ''
-      return { label: `权利要求 ${a.claims.find(item => item.id === id)?.number || b.claims.find(item => item.id === id)?.number || '?'}`, before, after, changed: before !== after }
-    })
+  compareEntries(): VersionDiffEntry[] { return this.service.compareVersions(this.compareA, this.compareB) }
+  compareGroup(scope: DiffScope): VersionDiffEntry[] { return this.compareEntries().filter(entry => entry.scope === scope) }
+  categoryLabel(category: DiffCategory): string {
+    return ({ added: '新增', removed: '删除', text: '正文', basis: '依据文字', structure: '结构关系', annotation: '批注' })[category]
   }
 
   exportFile(type: 'json' | 'csv'): void {
